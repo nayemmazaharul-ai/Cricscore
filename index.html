@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>CricScore Pro Live Recorder (1080p 60fps)</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            user-select: none;
+        }
+
+        body, html {
+            width: 100%;
+            height: 100%;
+            background-color: #000;
+            overflow: hidden;
+            color: #fff;
+        }
+
+        /* Landscape Orientation Warning for Portrait Mobile */
+        #rotate-warning {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: #111;
+            z-index: 9999;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 20px;
+        }
+
+        #rotate-warning svg {
+            width: 60px;
+            height: 60px;
+            fill: #00e676;
+            margin-bottom: 15px;
+            animation: rotatePhone 2s infinite ease-in-out;
+        }
+
+        @keyframes rotatePhone {
+            0%, 100% { transform: rotate(0deg); }
+            50% { transform: rotate(-90deg); }
+        }
+
+        @media screen and (orientation: portrait) {
+            body:not(.allow-portrait) #rotate-warning {
+                display: flex;
+            }
+        }
+
+        /* Main Studio Container */
+        #studio-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            background: #000;
+        }
+
+        /* Camera Feed */
+        #camera-feed {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+
+        /* Cricscore User Panel Overlay */
+        #score-overlay-wrapper {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none; /* Allows clicking camera controls if needed */
+            z-index: 10;
+        }
+
+        #cricscore-frame {
+            width: 100%;
+            height: 100%;
+            border: none;
+            background: transparent;
+            pointer-events: auto; /* Enables interaction with your panel */
+        }
+
+        /* Top Status Bar */
+        #top-bar {
+            position: absolute;
+            top: 15px;
+            left: 20px;
+            right: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 20;
+            pointer-events: none;
+        }
+
+        /* Top-Left Control Dock for Record Button */
+        #control-dock {
+            position: absolute;
+            top: 15px;
+            left: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            background: rgba(15, 15, 15, 0.75);
+            backdrop-filter: blur(10px);
+            padding: 3px;
+            border-radius: 50%;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            z-index: 30;
+        }
+
+        .ctrl-btn {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            border: none;
+            background: rgba(255, 255, 255, 0.12);
+            color: #fff;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-size: 6.5px;
+            font-weight: bold;
+            transition: all 0.2s ease;
+        }
+
+        .ctrl-btn:hover {
+            background: rgba(255, 255, 255, 0.25);
+            transform: scale(1.05);
+        }
+
+        .ctrl-btn:active {
+            transform: scale(0.95);
+        }
+
+        .ctrl-btn svg {
+            width: 11px;
+            height: 11px;
+            fill: currentColor;
+            margin-bottom: 1px;
+        }
+
+        /* Record Button Specific */
+        #btn-record {
+            background: #ff1744;
+            box-shadow: 0 0 15px rgba(255, 23, 68, 0.5);
+        }
+
+        #btn-record.active {
+            background: #fff;
+            color: #ff1744;
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(255, 23, 68, 0.7); }
+            70% { box-shadow: 0 0 0 12px rgba(255, 23, 68, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(255, 23, 68, 0); }
+        }
+
+        /* Toast Notification */
+        #toast {
+            position: absolute;
+            bottom: 25px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.85);
+            color: #00e676;
+            padding: 10px 22px;
+            border-radius: 25px;
+            font-size: 14px;
+            font-weight: 500;
+            border: 1px solid #00e676;
+            z-index: 50;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Portrait Warning -->
+    <div id="rotate-warning">
+        <svg viewBox="0 0 24 24"><path d="M16.48 2.52c3.27 1.55 5.61 4.72 5.97 8.48h1.5C23.44 4.84 18.29 0 12 0l-.66.03 3.81 3.81 1.33-1.32zm-6.25-.77c-.59-.59-1.54-.59-2.12 0L1.75 8.11c-.59.59-.59 1.54 0 2.12l12.02 12.02c.59.59 1.54.59 2.12 0l6.36-6.36c.59-.59.59-1.54 0-2.12L10.23 1.75zm4.6 19.44L2.81 9.17l6.36-6.36 12.02 12.02-6.36 6.36zm-7.31.29C4.25 19.94 1.91 16.76 1.55 13H.05C.56 19.16 5.71 24 12 24l.66-.03-3.81-3.81-1.33 1.32z"/></svg>
+        <h2>অনুগ্রহ করে ফোনটি Landscape (আড়াআড়ি) করুন</h2>
+        <p style="color:#aaa; margin-top:8px;">1080p 60fps লাইভ রেকর্ডিংয়ের জন্য Landscape মোড আবশ্যক।</p>
+        <button id="btn-force-portrait" style="margin-top:20px; padding:10px 20px; border-radius:20px; border:none; background:#00e676; color:#000; font-weight:bold; cursor:pointer;">Portrait মোডেই চালান</button>
+    </div>
+
+    <!-- Main Studio Interface -->
+    <div id="studio-container">
+        
+        <!-- Live Camera Video -->
+        <video id="camera-feed" autoplay playsinline muted></video>
+
+        <!-- Cricscore User Panel Overlay -->
+        <div id="score-overlay-wrapper">
+            <iframe id="cricscore-frame" src="https://nayemmazaharul-ai.github.io/Cricscore/" allowtransparency="true"></iframe>
+        </div>
+
+        <!-- Control Buttons (Only Record Button at Top-Left) -->
+        <div id="control-dock">
+            <!-- Record / Stop Button -->
+            <button class="ctrl-btn" id="btn-record" title="Start/Stop Recording">
+                <svg id="icon-rec" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/></svg>
+                <span id="text-rec">LIVE</span>
+            </button>
+        </div>
+
+        <!-- Toast Message -->
+        <div id="toast">মেসেজ</div>
+    </div>
+
+    <script>
+        const videoElement = document.getElementById('camera-feed');
+        const btnRecord = document.getElementById('btn-record');
+        const textRec = document.getElementById('text-rec');
+        const btnForcePortrait = document.getElementById('btn-force-portrait');
+        const toast = document.getElementById('toast');
+
+        let cameraStream = null;
+        let videoTrack = null;
+        let mediaRecorder = null;
+        let recordedChunks = [];
+        let recordedBlobUrl = null;
+        let recordedFileExt = 'webm';
+        let isRecording = false;
+        let useFrontCamera = false;
+        let isLandscapeLocked = false;
+
+        // Show Toast Message
+        function showToast(msg) {
+            toast.textContent = msg;
+            toast.style.opacity = '1';
+            setTimeout(() => {
+                toast.style.opacity = '0';
+            }, 3500);
+        }
+
+        // Enter Fullscreen Mode
+        async function enterFullScreen() {
+            const elem = document.documentElement;
+            try {
+                if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+                    if (elem.requestFullscreen) {
+                        await elem.requestFullscreen();
+                    } else if (elem.webkitRequestFullscreen) {
+                        await elem.webkitRequestFullscreen();
+                    }
+                }
+            } catch (e) {
+                console.log('Fullscreen request failed:', e);
+            }
+        }
+
+        // Lock Landscape Orientation if supported by browser
+        async function lockLandscape() {
+            try {
+                if (screen.orientation && screen.orientation.lock) {
+                    await screen.orientation.lock('landscape');
+                    isLandscapeLocked = true;
+                }
+            } catch (e) {
+                console.log('Orientation lock requires fullscreen.');
+            }
+        }
+
+        btnForcePortrait.addEventListener('click', () => {
+            document.body.classList.add('allow-portrait');
+            if (!cameraStream) startCamera();
+            showToast('Portrait মোড সক্রিয় হয়েছে');
+        });
+
+        // Initialize 1080p 60fps Camera & Voice
+        async function startCamera() {
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                showToast('আপনার ব্রাউজার বা HTTPS ছাড়া ক্যামেরা সাপোর্ট করছে না।');
+                return;
+            }
+
+            if (cameraStream) {
+                cameraStream.getTracks().forEach(track => track.stop());
+            }
+
+            const facing = useFrontCamera ? 'user' : 'environment';
+            const targetHeight = 1080;
+            const targetWidth = 1920;
+            const targetFps = 60;
+
+            // Primary selected quality constraints + Fallback constraints so camera & voice never fail
+            const constraintOptions = [
+                {
+                    audio: { echoCancellation: true, noiseSuppression: true },
+                    video: {
+                        facingMode: { ideal: facing },
+                        width: { ideal: targetWidth },
+                        height: { ideal: targetHeight },
+                        frameRate: { ideal: targetFps }
+                    }
+                },
+                {
+                    audio: true,
+                    video: {
+                        facingMode: { ideal: facing },
+                        width: { ideal: targetWidth },
+                        height: { ideal: targetHeight }
+                    }
+                },
+                {
+                    audio: true,
+                    video: { facingMode: { ideal: facing } }
+                },
+                {
+                    audio: true,
+                    video: true
+                }
+            ];
+
+            let stream = null;
+            for (const constraints of constraintOptions) {
+                try {
+                    stream = await navigator.mediaDevices.getUserMedia(constraints);
+                    if (stream) break;
+                } catch (e) {
+                    console.warn('Trying fallback camera constraints...', e);
+                }
+            }
+
+            if (!stream) {
+                showToast('ক্যামেরা ও ভয়েস চালু করতে পারমিশন দিন! (HTTPS প্রয়োজন)');
+                return;
+            }
+
+            try {
+                cameraStream = stream;
+                videoElement.srcObject = cameraStream;
+                videoElement.muted = true; // Prevent audio echo on speaker while recording mic
+                await videoElement.play().catch(() => {});
+
+                videoTrack = cameraStream.getVideoTracks()[0];
+
+            } catch (err) {
+                showToast('ক্যামেরা চালু করতে সমস্যা হচ্ছে! পারমিশন চেক করুন।');
+                console.error(err);
+            }
+        }
+
+        // Get supported MediaRecorder MIME type
+        function getSupportedMimeType() {
+            const types = [
+                'video/mp4;codecs=avc1,mp4a.40.2',
+                'video/mp4',
+                'video/webm;codecs=vp9,opus',
+                'video/webm;codecs=vp8,opus',
+                'video/webm'
+            ];
+            for (const type of types) {
+                if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(type)) {
+                    return type;
+                }
+            }
+            return '';
+        }
+
+        // Start / Stop Recording (Direct Camera + Mic with Fullscreen)
+        btnRecord.addEventListener('click', async () => {
+            if (!isRecording) {
+                await startDirectRecording();
+            } else {
+                stopDirectRecording();
+            }
+        });
+
+        async function startDirectRecording() {
+            try {
+                // Request Fullscreen immediately on Record click
+                await enterFullScreen();
+                if (!document.body.classList.contains('allow-portrait')) {
+                    lockLandscape();
+                }
+
+                if (!cameraStream || cameraStream.getVideoTracks()[0].readyState === 'ended') {
+                    await startCamera();
+                }
+
+                if (!cameraStream) {
+                    showToast('ক্যামেরা চালু না থাকায় রেকর্ড শুরু করা যাচ্ছে না।');
+                    return;
+                }
+
+                recordedChunks = [];
+                const mimeType = getSupportedMimeType();
+                recordedFileExt = mimeType.includes('mp4') ? 'mp4' : 'webm';
+
+                const bitrate = 12000000;
+
+                const recorderOptions = mimeType
+                    ? { mimeType: mimeType, videoBitsPerSecond: bitrate }
+                    : { videoBitsPerSecond: bitrate };
+
+                mediaRecorder = new MediaRecorder(cameraStream, recorderOptions);
+
+                mediaRecorder.ondataavailable = (event) => {
+                    if (event.data && event.data.size > 0) {
+                        recordedChunks.push(event.data);
+                    }
+                };
+
+                mediaRecorder.onstop = () => {
+                    const blobType = mimeType || 'video/webm';
+                    const blob = new Blob(recordedChunks, { type: blobType });
+                    if (recordedBlobUrl) URL.revokeObjectURL(recordedBlobUrl);
+                    recordedBlobUrl = URL.createObjectURL(blob);
+
+                    // Auto-trigger download to Local Storage
+                    saveToLocalStorage();
+                };
+
+                mediaRecorder.start(1000);
+                isRecording = true;
+                btnRecord.classList.add('active');
+                textRec.textContent = 'STOP';
+
+                showToast('ফুল স্ক্রিনে 1080p 60fps রেকর্ডিং শুরু হয়েছে!');
+
+            } catch (err) {
+                showToast('রেকর্ডিং শুরু করতে সমস্যা হয়েছে: ' + err.message);
+                console.error(err);
+            }
+        }
+
+        function stopDirectRecording() {
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                mediaRecorder.stop();
+            }
+            isRecording = false;
+            btnRecord.classList.remove('active');
+            textRec.textContent = 'LIVE';
+            showToast('রেকর্ডিং সম্পন্ন! লোকাল স্টোরেজে সেভ হচ্ছে...');
+        }
+
+        // Save Video File Directly to Local Storage (Downloads Folder)
+        function saveToLocalStorage() {
+            if (!recordedBlobUrl) return;
+            const a = document.createElement('a');
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+            a.style.display = 'none';
+            a.href = recordedBlobUrl;
+            a.download = `CricScore_Live_1080p_60fps_${timestamp}.${recordedFileExt}`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            showToast('ভিডিও লোকাল স্টোরেজে সেভ হয়েছে!');
+        }
+
+        // Initialize App on Load & on first user interaction if blocked
+        window.addEventListener('load', () => {
+            startCamera();
+        });
+
+        document.addEventListener('click', () => {
+            if (!cameraStream) {
+                startCamera();
+            }
+        }, { once: true });
+    </script>
+</body>
+</html>
